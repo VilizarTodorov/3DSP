@@ -6,7 +6,7 @@ import '@fontsource/roboto/700.css';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 
-import { Add, Delete } from '@mui/icons-material';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import {
     Box,
     Button,
@@ -16,6 +16,7 @@ import {
     List,
     ListItem,
     ListItemText,
+    Modal,
     Tab,
     Table,
     TableBody,
@@ -29,12 +30,24 @@ import {
 } from '@mui/material';
 import { nanoid } from 'nanoid';
 import { Fragment, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, get, useForm } from 'react-hook-form';
+
+const style = {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 400,
+    bgcolor: 'background.paper',
+    border: '2px solid #000',
+    boxShadow: 24,
+    p: 4,
+};
 
 const initialRows = [
     {
         id: 'qvcU34eCt2TKj6cHDhs8T',
-        name: 'asd',
+        name: 'Cost',
         color: '#ffffff',
         parentId: null,
         nestedLevel: 0,
@@ -42,7 +55,7 @@ const initialRows = [
         children: [
             {
                 id: 'eBczMjvtOqc4qWFzvxdh4',
-                name: 'asd inner',
+                name: 'Price',
                 color: '#ffffff',
                 parentId: 'qvcU34eCt2TKj6cHDhs8T',
                 nestedLevel: 1,
@@ -50,7 +63,7 @@ const initialRows = [
                 children: [
                     {
                         id: 'wUzVjBx1Om06gJRlHbiB6',
-                        name: 'asd inner squared',
+                        name: 'Margin',
                         color: '#ffffff',
                         parentId: 'eBczMjvtOqc4qWFzvxdh4',
                         nestedLevel: 2,
@@ -63,7 +76,7 @@ const initialRows = [
     },
     {
         id: 'diEKzKEsoWOq_nGzXkssw',
-        name: 'zxc',
+        name: 'Total',
         color: '#ffffff',
         parentId: null,
         nestedLevel: 0,
@@ -163,7 +176,7 @@ const TableSettings = ({ rows, addRow, editRow, removeRow }) => {
     );
 };
 
-const CustomTableRow = ({ row, reports, updateReportFields, updateReport }) => {
+const CustomTableRow = ({ row, reports }) => {
     const [open, setOpen] = useState(false);
     const reportsRowValues = reports.map((report) => {
         const field = report.fields.find((x) => x.rowId === row.id);
@@ -176,6 +189,14 @@ const CustomTableRow = ({ row, reports, updateReportFields, updateReport }) => {
             reportId: report.id,
         };
     });
+
+    const getKey = (reportValues) => {
+        if (reportValues.reportId) {
+            return `${reportValues.reportId}-${reportValues.rowId}-${reportValues.value}`;
+        } else {
+            return nanoid();
+        }
+    };
     return (
         <Fragment>
             <TableRow sx={{ '& > *': { borderBottom: 'unset' }, backgroundColor: row.color }}>
@@ -186,28 +207,13 @@ const CustomTableRow = ({ row, reports, updateReportFields, updateReport }) => {
                     {row.name}
                 </TableCell>
                 {reportsRowValues.map((reportValues) => (
-                    <TableCell key={`${reportValues.reportId}-${reportValues.rowId}`}>
-                        <TextField
-                            value={reportValues.value}
-                            onChange={(e) =>
-                                updateReport(reportValues.reportId, {
-                                    fields: updateReportFields(reportValues.rowId, e.target.value),
-                                })
-                            }
-                        />
-                    </TableCell>
+                    <TableCell key={getKey(reportValues)}>{reportValues.value}</TableCell>
                 ))}
             </TableRow>
             {!!row.children.length && open && (
                 <Fragment>
                     {row.children.map((childRow) => (
-                        <CustomTableRow
-                            key={childRow.id}
-                            row={childRow}
-                            reports={reports}
-                            updateReport={updateReport}
-                            updateReportFields={updateReportFields}
-                        />
+                        <CustomTableRow key={childRow.id} row={childRow} reports={reports} />
                     ))}
                 </Fragment>
             )}
@@ -215,33 +221,42 @@ const CustomTableRow = ({ row, reports, updateReportFields, updateReport }) => {
     );
 };
 
-const CustomTable = ({ rows, reports, updateReportFields, updateReport }) => {
+const CustomTable = ({ rows, reports, updateReport, selectReport, selectedReport, reportFormFields }) => {
     return (
-        <TableContainer>
-            <Table aria-label="collapsible table">
-                <TableHead>
-                    <TableRow>
-                        <TableCell></TableCell>
-                        {reports.map((report) => (
-                            <TableCell key={report.id}>{report.name}</TableCell>
-                        ))}
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {rows.map((row) => {
-                        return (
-                            <CustomTableRow
-                                key={row.id}
-                                row={row}
-                                reports={reports}
-                                updateReport={updateReport}
-                                updateReportFields={updateReportFields}
-                            />
-                        );
-                    })}
-                </TableBody>
-            </Table>
-        </TableContainer>
+        <Fragment>
+            <TableContainer>
+                <Table aria-label="collapsible table">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell></TableCell>
+                            {reports.map((report) => (
+                                <TableCell key={report.id}>
+                                    {report.name}
+                                    <IconButton onClick={() => selectReport(report.id)} size="small">
+                                        <Edit />
+                                    </IconButton>
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {rows.map((row) => {
+                            return <CustomTableRow key={row.id} row={row} reports={reports} />;
+                        })}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+            <Modal
+                open={!!selectedReport}
+                onClose={() => selectReport(null)}
+                aria-labelledby="modal-modal-title"
+                aria-describedby="modal-modal-description"
+            >
+                <Box sx={style}>
+                    <Report report={selectedReport} reportFormFields={reportFormFields} updateReport={updateReport} />
+                </Box>
+            </Modal>
+        </Fragment>
     );
 };
 
@@ -261,39 +276,52 @@ const generateFormFields = (rows) => {
     return fields;
 };
 
-const Report = ({ report, reportFormFields, updateReport, updateReportFields }) => {
+const Report = ({ report, reportFormFields, updateReport }) => {
     const values = useMemo(() => {
         const defaultValues = {};
         Array.from(reportFormFields.keys()).forEach((key) => {
-            defaultValues[key] = report.fields.find((field) => field.rowId === key)?.value;
+            defaultValues[key] = report.fields.find((field) => field.rowId === key)?.value || '';
         });
+        defaultValues['name'] = report.name || '';
         return defaultValues;
     }, [reportFormFields, report]);
+
     const form = useForm({ values });
-    console.log(form.getValues());
+
+    const onSubmit = (data) => {
+        const { name, ...rest } = data;
+
+        const updatedFields = {
+            name,
+            fields: Array.from(reportFormFields.keys()).map((key) => ({ rowId: key, value: rest[key] })),
+        };
+        updateReport(report.id, updatedFields);
+    };
+
     return (
-        <Box flex={1} sx={{ display: 'flex', flexDirection: 'column' }}>
-            <TextField
-                label="Report Name"
-                id="name"
-                value={report.name}
-                onChange={(e) => updateReport(report.id, { name: e.target.value })}
+        <Box flex={1} sx={{ display: 'flex', flexDirection: 'column', '& > :not(style)': { m: 1 } }}>
+            <Controller
+                name="name"
+                control={form.control}
+                render={({ field }) => {
+                    return <TextField label="Report Name" {...field} />;
+                }}
             />
-            {report.fields.map(
-                (field) =>
-                    reportFormFields.has(field.rowId) && (
-                        <TextField
-                            key={field.rowId}
-                            label={reportFormFields.get(field.rowId).name}
-                            id={field.rowId}
-                            value={field.value}
-                            onChange={(e) =>
-                                updateReport(report.id, { fields: updateReportFields(field.rowId, e.target.value) })
-                            }
-                        />
-                    )
-            )}
-            <Button>save</Button>
+
+            {Array.from(reportFormFields.keys()).map((key) => (
+                <Controller
+                    key={key}
+                    name={key}
+                    control={form.control}
+                    render={({ field }) => {
+                        return <TextField label={reportFormFields.get(key).name} {...field} />;
+                    }}
+                />
+            ))}
+
+            <Button onClick={form.handleSubmit(onSubmit)} variant="contained">
+                save
+            </Button>
         </Box>
     );
 };
@@ -306,7 +334,6 @@ const Reports = ({
     selectedReport,
     reportFormFields,
     updateReport,
-    updateReportFields,
 }) => {
     return (
         <Container>
@@ -340,12 +367,7 @@ const Reports = ({
                     </List>
                 </Box>
                 {!!selectedReport && (
-                    <Report
-                        report={selectedReport}
-                        reportFormFields={reportFormFields}
-                        updateReport={updateReport}
-                        updateReportFields={updateReportFields}
-                    />
+                    <Report report={selectedReport} reportFormFields={reportFormFields} updateReport={updateReport} />
                 )}
             </Box>
         </Container>
@@ -356,12 +378,13 @@ const App = () => {
     const [currentTab, setCurrentTab] = useState(0);
     const [rows, setRows] = useState(initialRows);
     const [reports, setReports] = useState([]);
-    const [selectedReport, setSelectedReport] = useState(null);
+    const [selectedReportId, setSelectedReportId] = useState(null);
 
     const reportFormFields = useMemo(() => generateFormFields(rows), [rows]);
-    const report = useMemo(() => reports.find((x) => x.id === selectedReport), [reports, selectedReport]);
+    const report = useMemo(() => reports.find((x) => x.id === selectedReportId), [reports, selectedReportId]);
     const handleTabChange = (event, newValue) => {
         setCurrentTab(newValue);
+        setSelectedReportId(null)
     };
 
     const addNestedRow = (rows, parentId, newRow) => {
@@ -456,7 +479,7 @@ const App = () => {
 
         Array.from(reportFormFields.keys()).forEach((rowId) => newReport.fields.push({ rowId, value: '' }));
         setReports((prev) => [...prev, newReport]);
-        setSelectedReport(newReport.id);
+        setSelectedReportId(newReport.id);
     };
 
     const removeReport = (report) => {
@@ -464,7 +487,7 @@ const App = () => {
     };
 
     const selectReport = (reportId) => {
-        setSelectedReport(reportId);
+        setSelectedReportId(reportId);
     };
 
     const updateReport = (reportId, updatedData) => {
@@ -480,6 +503,7 @@ const App = () => {
                 return x;
             })
         );
+        setSelectedReportId(null);
     };
 
     const updateReportFields = (fieldId, value) => {
@@ -515,7 +539,6 @@ const App = () => {
                     removeReport={removeReport}
                     selectReport={selectReport}
                     updateReport={updateReport}
-                    updateReportFields={updateReportFields}
                 />
             </CustomTabPanel>
             <CustomTabPanel value={currentTab} index={2}>
@@ -524,6 +547,9 @@ const App = () => {
                     reports={reports}
                     updateReport={updateReport}
                     updateReportFields={updateReportFields}
+                    selectReport={selectReport}
+                    selectedReport={report}
+                    reportFormFields={reportFormFields}
                 />
             </CustomTabPanel>
         </Box>
